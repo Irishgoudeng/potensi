@@ -1,9 +1,7 @@
-import { Fragment } from 'react';
-import '../styles/calendar.scss';
+import { Fragment } from "react";
+// import '../styles/calendar.scss';
 
 const Home = () => {
-
-
   return <Fragment></Fragment>;
 };
 
@@ -41,7 +39,6 @@ export default Home;
 
 // export default Home;
 
-
 // // import node module libraries
 // import { Fragment, useEffect } from 'react';
 // import { useRouter } from 'next/router';
@@ -54,7 +51,7 @@ export default Home;
 //     document.body.className = 'bg-light';
 
 //     // Redirect to /sign-in
-	
+
 //     // router.push('/authentication/sign-in');
 // 	router.push('/dashboard/overview');
 //   }, [router]);
