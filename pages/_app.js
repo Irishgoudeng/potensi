@@ -8,7 +8,6 @@ import { Provider } from "react-redux";
 import { store } from "store/store";
 
 import "../styles/calendar.scss"; // Ensure the path is correct
-import styles from "../styles/calendar.module.scss";
 
 // import theme style scss file
 import "styles/theme.scss";
