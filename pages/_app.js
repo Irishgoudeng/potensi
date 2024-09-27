@@ -1,29 +1,40 @@
 // import node module libraries
-import Head from 'next/head';
-import { useRouter } from 'next/router'
-import { NextSeo } from 'next-seo'
+import Head from "next/head";
+import { useRouter } from "next/router";
+import { NextSeo } from "next-seo";
 
 // import provider and store from redux state management.
-import { Provider } from 'react-redux'
-import { store } from 'store/store'
+import { Provider } from "react-redux";
+import { store } from "store/store";
+
+import "../styles/calendar.scss"; // Ensure the path is correct
+import styles from "../styles/calendar.module.scss";
 
 // import theme style scss file
-import 'styles/theme.scss';
+import "styles/theme.scss";
 
 // import default layouts
-import DefaultMarketingLayout from 'layouts/marketing/DefaultLayout';
-import DefaultDashboardLayout from 'layouts/dashboard/DashboardIndex';
-import { Fragment } from 'react';
+import DefaultMarketingLayout from "layouts/marketing/DefaultLayout";
+import DefaultDashboardLayout from "layouts/dashboard/DashboardIndex";
+import { Fragment } from "react";
 
 function MyApp({ Component, pageProps }) {
   const router = useRouter();
   const pageURL = process.env.baseURL + router.pathname;
   const title = "Potensi - SAP B1 Portal";
-  const description = "Discover Potensi, your ultimate SAP B1 portal. Utilize the portal with ease!"
-  const keywords = "SAP B1, Service Layer, Admin dashboard, Portal, web apps, bootstrap 5, Pixelcare Consulting"
+  const description =
+    "Discover Potensi, your ultimate SAP B1 portal. Utilize the portal with ease!";
+  const keywords =
+    "SAP B1, Service Layer, Admin dashboard, Portal, web apps, bootstrap 5, Pixelcare Consulting";
 
-  const Layout = Component.Layout || (router.pathname.includes('dashboard') ? (router.pathname.includes('instructor') || router.pathname.includes('student') ? DefaultMarketingLayout : DefaultDashboardLayout) : DefaultMarketingLayout)
-
+  const Layout =
+    Component.Layout ||
+    (router.pathname.includes("dashboard")
+      ? router.pathname.includes("instructor") ||
+        router.pathname.includes("student")
+        ? DefaultMarketingLayout
+        : DefaultDashboardLayout
+      : DefaultMarketingLayout);
 
   return (
     <Fragment>
@@ -43,10 +54,10 @@ function MyApp({ Component, pageProps }) {
           site_name: process.env.siteName,
           images: [
             {
-              url: '/images/og/geeks-ui-next-js-default-og-image.jpg',
+              url: "/images/og/geeks-ui-next-js-default-og-image.jpg",
               width: 1200,
               height: 630,
-              alt: 'Geeks UI NextJS',
+              alt: "Geeks UI NextJS",
             },
           ],
         }}
@@ -57,7 +68,7 @@ function MyApp({ Component, pageProps }) {
         </Layout>
       </Provider>
     </Fragment>
-  )
+  );
 }
 
-export default MyApp
+export default MyApp;
