@@ -1,86 +1,95 @@
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+import { initializeApp } from "firebase/app";
+import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
+import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { firebaseConfig } from "../../firebase"; // Import your Firebase config
+import jwt from "jsonwebtoken";
+import https from "https";
 
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import { firebaseConfig } from '../../firebase'; // Import your Firebase config
-import jwt from 'jsonwebtoken';
-import https from 'https';
-
-// Initialize Firebase app
-if (!initializeApp.length) {
-  initializeApp(firebaseConfig);
-}
+// Initialize Firebase app only once
+const app = initializeApp(firebaseConfig);
+const auth = getAuth();
+const db = getFirestore();
 
 // Fetch user data based on workerId from Firestore
 async function fetchUserData(workerId) {
-  const db = getFirestore();
-  const userDocRef = doc(db, 'users', workerId);
+  const userDocRef = doc(db, "users", workerId);
   try {
     const userDocSnapshot = await getDoc(userDocRef);
     if (userDocSnapshot.exists()) {
       const userData = userDocSnapshot.data();
-      console.log('User data fetched from Firestore:', userData);
+      console.log("User data fetched from Firestore:", userData);
       return userData; // Return the user data
     } else {
-      throw new Error('Invalid credentials');
+      throw new Error("User not found");
     }
   } catch (error) {
-    console.error('Error fetching user data from Firestore:', error);
+    console.error("Error fetching user data from Firestore:", error);
     throw error;
   }
 }
 
 export default async function handler(req, res) {
   const { workerId, password } = req.body;
-  console.log('Received request:', { workerId, password });
+  console.log("Received request:", { workerId, password });
+
+  if (!workerId || !password) {
+    return res
+      .status(400)
+      .json({ message: "Worker ID and password are required." });
+  }
 
   try {
     const userData = await fetchUserData(workerId);
-    console.log('Fetched user data:', userData);
+    console.log("Fetched user data:", userData);
 
     if (!userData.isAdmin) {
-      console.log('Access denied. User is not an admin.');
-      return res.status(401).json({ message: 'Access denied. You are not authorized.' });
+      console.log("Access denied. User is not an admin.");
+      return res
+        .status(401)
+        .json({ message: "Access denied. You are not authorized." });
     }
 
     const email = userData.email;
-    const auth = getAuth();
+
+    // Sign in the user
     await signInWithEmailAndPassword(auth, email, password);
-    console.log('User signed in with email and password');
+    console.log("User signed in with email and password");
 
     // Trigger SAP B1 Service Layer Authentication
-    const sapLoginResponse = await fetch(process.env.SAP_SERVICE_LAYER_BASE_URL + 'Login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        CompanyDB: process.env.SAP_B1_COMPANY_DB,
-        UserName: process.env.SAP_B1_USERNAME,
-        Password: process.env.SAP_B1_PASSWORD,
-      }),
-      agent: new https.Agent({ rejectUnauthorized: false }), // Disable cert verification
-    });
+    const sapLoginResponse = await fetch(
+      process.env.SAP_SERVICE_LAYER_BASE_URL + "Login",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          CompanyDB: process.env.SAP_B1_COMPANY_DB,
+          UserName: process.env.SAP_B1_USERNAME,
+          Password: process.env.SAP_B1_PASSWORD,
+        }),
+        agent: new https.Agent({ rejectUnauthorized: false }), // Disable cert verification (use with caution)
+      }
+    );
 
     if (sapLoginResponse.ok) {
       const sapLoginData = await sapLoginResponse.json();
       const sessionId = sapLoginData.SessionId;
       const sessionTimeout = 30;
 
-      res.setHeader('Set-Cookie', [
+      res.setHeader("Set-Cookie", [
         `B1SESSION=${sessionId}; HttpOnly; Secure; SameSite=None`,
         `ROUTEID=.node4; Secure; SameSite=None`,
       ]);
 
       const token = { uid: auth.currentUser.uid, isAdmin: userData.isAdmin };
-      const secretKey = 'kdaJLPhRtGKGTLiAThdvHnVR0H544DOGM3Q2OBerQk4L0z1zzcaOVqU0afHK6ab'; 
-      const customToken = jwt.sign(token, secretKey, { expiresIn: '30m' });
+      const secretKey = process.env.JWT_SECRET || "defaultSecretKey"; // Use environment variable for the secret
+      const customToken = jwt.sign(token, secretKey, { expiresIn: "30m" });
 
-      console.log('Generated custom token:', customToken);
+      console.log("Generated custom token:", customToken);
 
       return res.status(200).json({
-        message: 'Login successful',
+        message: "Login successful",
         uid: auth.currentUser.uid,
         workerId,
         firstName: userData.firstName,
@@ -89,24 +98,23 @@ export default async function handler(req, res) {
         isAdmin: userData.isAdmin,
         token,
         customToken,
-        sessionId, 
+        sessionId,
         sessionTimeout,
       });
     } else {
-      console.error('SAP B1 Service Layer login failed:', sapLoginResponse.statusText);
-      return res.status(500).json({ message: 'SAP B1 Service Layer login failed' });
+      console.error(
+        "SAP B1 Service Layer login failed:",
+        sapLoginResponse.statusText
+      );
+      return res
+        .status(500)
+        .json({ message: "SAP B1 Service Layer login failed" });
     }
   } catch (error) {
-    console.error('Error logging in:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    console.error("Error logging in:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 }
-
-
-
-
-
-
 
 // process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
@@ -191,7 +199,7 @@ export default async function handler(req, res) {
 //         if (userData.isAdmin) {
 //           // Generate a custom token with a 30-minute expiration
 //           const token = { uid: auth.currentUser.uid, isAdmin: userData.isAdmin };
-//           const secretKey = 'kdaJLPhRtGKGTLiAThdvHnVR0H544DOGM3Q2OBerQk4L0z1zzcaOVqU0afHK6ab'; 
+//           const secretKey = 'kdaJLPhRtGKGTLiAThdvHnVR0H544DOGM3Q2OBerQk4L0z1zzcaOVqU0afHK6ab';
 //           const customToken = jwt.sign(token, secretKey, { expiresIn: '30m' });
 
 //           console.log('Generated custom token:', customToken);
@@ -204,7 +212,7 @@ export default async function handler(req, res) {
 //             isAdmin: userData.isAdmin,
 //             token,
 //             customToken,
-//             sessionId, 
+//             sessionId,
 //             sessionTimeout,
 //           });
 //         } else {
@@ -213,7 +221,7 @@ export default async function handler(req, res) {
 //         }
 //       } else {
 //         console.log('User data not found in Firestore.');
-//         res.status(401).json({ message: 'Invalid credentials' }); 
+//         res.status(401).json({ message: 'Invalid credentials' });
 //       }
 //     } else {
 //       // Handle SAP B1 Service Layer login failure
@@ -225,17 +233,6 @@ export default async function handler(req, res) {
 //     res.status(500).json({ message: 'Internal server error' });
 //   }
 // }
-
-
-
-
-
-
-
-
-
-
-
 
 /////////////////// OLD BUT WORKING ////////////////////////////////////////
 // import { initializeApp } from 'firebase/app';
@@ -291,7 +288,7 @@ export default async function handler(req, res) {
 //       if (userData.isAdmin) {
 //         // Generate a custom token with a 30-minute expiration
 //         const token = { uid: auth.currentUser.uid, isAdmin: userData.isAdmin };
-//         const secretKey = 'kdaJLPhRtGKGTLiAThdvHnVR0H544DOGM3Q2OBerQk4L0z1zzcaOVqU0afHK6ab'; 
+//         const secretKey = 'kdaJLPhRtGKGTLiAThdvHnVR0H544DOGM3Q2OBerQk4L0z1zzcaOVqU0afHK6ab';
 //         const customToken = jwt.sign(token, secretKey, { expiresIn: '30m' });
 
 //         console.log('Generated custom token:', customToken);
@@ -311,14 +308,13 @@ export default async function handler(req, res) {
 //       }
 //     } else {
 //       console.log('User data not found in Firestore.');
-//       res.status(401).json({ message: 'Invalid credentials' }); 
+//       res.status(401).json({ message: 'Invalid credentials' });
 //     }
 //   } catch (error) {
 //     console.error('Error logging in:', error);
 //     res.status(500).json({ message: 'Internal server error' });
 //   }
 // }
-
 
 // import { initializeApp } from 'firebase/app';
 // import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
@@ -373,7 +369,7 @@ export default async function handler(req, res) {
 //       if (userData.isAdmin) {
 //         // Generate a custom token with a 30-minute expiration
 //         const token = { uid: auth.currentUser.uid, isAdmin: userData.isAdmin };
-//         const secretKey = 'kdaJLPhRtGKGTLiAThdvHnVR0H544DOGM3Q2OBerQk4L0z1zzcaOVqU0afHK6ab'; 
+//         const secretKey = 'kdaJLPhRtGKGTLiAThdvHnVR0H544DOGM3Q2OBerQk4L0z1zzcaOVqU0afHK6ab';
 //         const customToken = jwt.sign(token, secretKey, { expiresIn: '30m' });
 
 //         console.log('Generated custom token:', customToken);
@@ -467,10 +463,6 @@ export default async function handler(req, res) {
 //   }
 // }
 
-
-
-
-
 // import { initializeApp } from 'firebase/app';
 // import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 // import { getFirestore, doc, getDoc } from 'firebase/firestore';
@@ -498,7 +490,6 @@ export default async function handler(req, res) {
 //     throw error;
 //   }
 // }
-
 
 // export default async function handler(req, res) {
 //   const { workerId, password } = req.body;
@@ -539,7 +530,6 @@ export default async function handler(req, res) {
 //   }
 // }
 
-
 //////////////////////////////////////////////////////////
 // import { initializeApp } from 'firebase/app';
 // import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
@@ -574,7 +564,6 @@ export default async function handler(req, res) {
 //   try {
 //     const email = await fetchUserEmail(workerId);
 
-
 //     const auth = getAuth();
 //     await signInWithEmailAndPassword(auth, email, password);
 
@@ -603,10 +592,6 @@ export default async function handler(req, res) {
 //     res.status(500).json({ message: 'Internal server error' });
 //   }
 // }
-
-
-
-
 
 // import { initializeApp } from 'firebase/app';
 // import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
